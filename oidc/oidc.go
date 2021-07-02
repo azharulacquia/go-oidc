@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"mime"
 	"net/http"
-	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -84,7 +83,7 @@ type Provider struct {
 	// Raw claims returned by the server.
 	rawClaims []byte
 
-	remoteKeySet KeySet
+	staticKeySet KeySet
 }
 
 type providerJSON struct {
@@ -115,50 +114,15 @@ var supportedAlgorithms = map[string]bool{
 //
 // The issuer is the URL identifier for the service. For example: "https://accounts.google.com"
 // or "https://login.salesforce.com".
-func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
-	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
-	req, err := http.NewRequest("GET", wellKnown, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := doRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s: %s", resp.Status, body)
-	}
-
-	var p providerJSON
-	err = unmarshalResp(resp, body, &p)
-	if err != nil {
-		return nil, fmt.Errorf("oidc: failed to decode provider discovery object: %v", err)
-	}
-
-	if p.Issuer != issuer {
-		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.Issuer)
-	}
-	var algs []string
-	for _, a := range p.Algorithms {
-		if supportedAlgorithms[a] {
-			algs = append(algs, a)
-		}
-	}
+func NewProvider(ctx context.Context, issuer , authurl, tokenurl, userinfourl string, algs []string, publicKey string) (*Provider, error) {
 	return &Provider{
-		issuer:       p.Issuer,
-		authURL:      p.AuthURL,
-		tokenURL:     p.TokenURL,
-		userInfoURL:  p.UserInfoURL,
+		issuer:       authurl,
+		authURL:      authurl,
+		tokenURL:     tokenurl,
+		userInfoURL:  userinfourl,
 		algorithms:   algs,
-		rawClaims:    body,
-		remoteKeySet: NewRemoteKeySet(cloneContext(ctx), p.JWKSURL),
+		rawClaims:    nil,
+		staticKeySet: NewStaticKeySet(cloneContext(ctx), publicKey),
 	}, nil
 }
 
@@ -248,7 +212,7 @@ func (p *Provider) UserInfo(ctx context.Context, tokenSource oauth2.TokenSource)
 	ct := resp.Header.Get("Content-Type")
 	mediaType, _, parseErr := mime.ParseMediaType(ct)
 	if parseErr == nil && mediaType == "application/jwt" {
-		payload, err := p.remoteKeySet.VerifySignature(ctx, string(body))
+		payload, err := p.staticKeySet.VerifySignature(ctx, string(body))
 		if err != nil {
 			return nil, fmt.Errorf("oidc: invalid userinfo jwt signature %v", err)
 		}

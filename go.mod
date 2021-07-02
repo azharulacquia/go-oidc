@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/kataras/jwt v0.1.2
 	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/net v0.0.0-20200505041828-1ed23360d12c
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d

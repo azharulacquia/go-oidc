@@ -114,7 +114,7 @@ func (p *Provider) Verifier(config *Config) *IDTokenVerifier {
 		cp.SupportedSigningAlgs = p.algorithms
 		config = cp
 	}
-	return NewVerifier(p.issuer, p.remoteKeySet, config)
+	return NewVerifier(p.issuer, p.staticKeySet, config)
 }
 
 func parseJWT(p string) ([]byte, error) {
